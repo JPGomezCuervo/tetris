@@ -1,5 +1,6 @@
 #include <raylib.h>
 #include <stdbool.h>
+#include <stdio.h>
 
 #define SCREENWIDTH     800
 #define SCREENHEIGHT    800
@@ -22,9 +23,34 @@ typedef enum {
         S
 } Tetrominoes;
 
+typedef struct {
+        Tetrominoes type;
+        int coordinates[4][2];
+
+} Player;
+
 Color colors [8];
-int board[BOARDCOLS][BOARDROWS] = {0};
+int board[BOARDROWS][BOARDCOLS] = {
+        {0, 0, 0, 0, 0, 0, 0, 0, 0, 0},
+        {0, 0, 0, 0, 0, 0, 0, 0, 0, 0},
+        {0, 0, 0, 0, 0, 0, 0, 0, 0, 0},
+        {0, 0, 0, 0, 0, 0, 0, 0, 0, 0},
+        {0, 0, 0, 0, 0, 0, 0, 0, 0, 0},
+        {0, 0, 0, 0, 0, 0, 0, 0, 0, 0},
+        {0, 0, 0, 0, 0, 0, 0, 0, 0, 0},
+        {0, 0, 0, 0, 0, 0, 0, 0, 0, 0},
+        {0, 0, 0, 0, 0, 0, 0, 0, 0, 0},
+        {0, 0, 0, 0, 0, 0, 0, 0, 0, 0},
+        {0, 0, 0, 0, 0, 0, 0, 0, 0, 0},
+        {0, 0, 0, 0, 0, 0, 0, 0, 0, 0},
+        {0, 0, 0, 0, 0, 0, 0, 0, 0, 0},
+        {0, 0, 0, 0, 0, 0, 0, 0, 0, 0},
+        {0, 0, 0, 0, 0, 0, 0, 0, 0, 0},
+        {0, 0, 0, 0, 0, 0, 0, 0, 0, 0},
+};
+
 bool oncreation = false;
+bool isfalling = true;
 
 int tetromino_j[4][4]= {
         {1,0,0,0},
@@ -41,14 +67,22 @@ int tetromino_l[4][4]= {
 };
 
 int tetromino_o[4][4]= {
+        {1,1,0,0},
+        {1,1,0,0},
         {0,0,0,0},
-        {1,1,0,0},
-        {1,1,0,0},
         {0,0,0,0}
 };
 
-void updateBoard(int cols, int rows, int board[cols][rows]);
-void createTetromino(int tetromino[4][4], Tetrominoes type );
+void updateBoard(int rows, int cols, int board[rows][cols]);
+void createTetromino(int tetromino[4][4], Tetrominoes type);
+void fallingTetromino();
+void printBoard();
+void debugboard();
+bool hasCollide();
+
+Player player = {0};
+int frame = 0;
+
 
 int main(void) {
 
@@ -62,14 +96,19 @@ int main(void) {
         colors[S] = GREEN;
 
         InitWindow(SCREENWIDTH, SCREENHEIGHT, "tetris!");
-        SetTargetFPS(60);
+        SetTargetFPS(1);
 
+        createTetromino(tetromino_o, O);
         while (!WindowShouldClose()) {
-                createTetromino(tetromino_o, O);
+                debugboard();
+                frame++;
                 BeginDrawing();
-                updateBoard(BOARDCOLS, BOARDROWS, board);
+                updateBoard(BOARDROWS, BOARDCOLS, board);
                 ClearBackground(BLACK);
                 EndDrawing();
+                if (isfalling) {
+                        fallingTetromino();
+                }
         }
 
         CloseWindow();
@@ -78,19 +117,103 @@ int main(void) {
 }
 
 
+bool hasCollide() {
+
+        int col = 0;
+        int row = 0;
+
+        for (int i = 0; i < 4; i++) {
+                row = player.coordinates[i][0];
+                col = player.coordinates[i][1];
+
+                // Has collide with the limit 
+                if (row >= BOARDROWS) 
+                        return true;
+                
+                // Has collide with another tetrominoe
+                if (board[row][col] != 0)
+                        return true;
+        }
+
+        return false;
+}
+
+void fallingTetromino() {
+        int *col = 0;
+        int *row = 0;
+        int oldCoordinates[4][4] = {0};
+
+        // TODO: 2 for loops, not optimal; fix it.
+
+        for (int i = 0; i < 4; i++) {
+                row = &(player.coordinates[i][0]);
+                col = &(player.coordinates[i][1]);
+                oldCoordinates[i][0] = *row;
+                oldCoordinates[i][1] = *col;
+
+                printf("player coordinates %d: ROW-> %d, COL-> %d \n", 
+                                i, *row, *col);
+
+
+                board[*row][*col] = 0;
+                (*row)++;
+        }
+
+        if (hasCollide()) {
+                isfalling = false;
+
+                for (int i = 0; i < 4; i++) {
+                        player.coordinates[i][0] = oldCoordinates[i][0];
+                        player.coordinates[i][1] = oldCoordinates[i][1];
+                        board[player.coordinates[i][0]][player.coordinates[i][1]] = player.type;
+                }
+
+        } else {
+                for (int i = 0; i < 4; i++) {
+                        row = &(player.coordinates[i][0]);
+                        col = &(player.coordinates[i][1]);
+                        board[*row][*col] = player.type;
+                }
+        }
+
+
+}
+
+void printBoard() {
+        for (int row = 0; row < BOARDROWS; row++) {
+                printf("%c", '\n');
+                for (int col = 0; col < BOARDCOLS; col++) {
+                        printf("%d ", board[row][col]);
+                }
+        }
+}
+
+void debugboard() {
+
+        printf("FRAME: %d\n", frame);
+        printBoard();
+        printf("\n");
+}
+
 void createTetromino(int tetromino[4][4], Tetrominoes type) {
 
-        for (int y = 0; y < 4; y++) {
-                for (int x = 0; x < 4; x++) {
-                        int tetro_cell = tetromino[y][x];
+        int i = 0;
+        player.type = type;
+
+        for (int row = 0; row < 4; row++) {
+                for (int col = 0; col < 4; col++) {
+                       int tetro_cell = tetromino[row][col];
                         if (tetro_cell) {
-                                board[x+4][y] = type;
+                                board[row][col+4] = type;
+                                player.coordinates[i][0] = row;
+                                player.coordinates[i][1] = col+4;
+                                i++;
                         }
                 }
         }
 }
 
-void updateBoard(int cols, int rows, int board[cols][rows]) {
+void updateBoard(int rows, int cols, int board[rows][cols]) {
 
         int offsetx = PADDINGX/2;
         int offsety = PADDINGY/2;
@@ -100,13 +223,13 @@ void updateBoard(int cols, int rows, int board[cols][rows]) {
                 .height = BLOCKSIZE,
         };
 
-        for (int x = 0; x < cols; x++) {
-                for (int y = 0; y < rows; y++) {
+        for (int row = 0; row < rows; row++) {
+                for (int col = 0; col < cols; col++) {
 
-                        block.x = (x * BLOCKSIZE) + offsetx;
-                        block.y = (y * BLOCKSIZE) + offsety;
+                        block.x = (col * BLOCKSIZE) + offsetx;
+                        block.y = (row * BLOCKSIZE) + offsety;
 
-                        int cell = board[x][y];
+                        int cell = board[row][col];
 
                         switch(cell) {
                                 case 0:
