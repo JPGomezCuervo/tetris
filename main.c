@@ -1,6 +1,7 @@
 #include <raylib.h>
 #include <stdbool.h>
 #include <stdio.h>
+#include <stdlib.h>
 
 #define SCREENWIDTH     800
 #define SCREENHEIGHT    800
@@ -59,6 +60,13 @@ int tetromino_j[4][4]= {
         {0,0,0,0}
 };
 
+int tetromino_i[4][4]= {
+        {1,1,1,1},
+        {0,0,0,0},
+        {0,0,0,0},
+        {0,0,0,0}
+};
+
 int tetromino_l[4][4]= {
         {0,0,0,1},
         {0,1,1,1},
@@ -73,8 +81,29 @@ int tetromino_o[4][4]= {
         {0,0,0,0}
 };
 
+int tetromino_s[4][4]= {
+        {0,0,1,1},
+        {0,1,1,0},
+        {0,0,0,0},
+        {0,0,0,0}
+};
+
+int tetromino_t[4][4]= {
+        {0,0,1,0},
+        {0,1,1,1},
+        {0,0,0,0},
+        {0,0,0,0}
+};
+
+int tetromino_z[4][4]= {
+        {0,1,1,0},
+        {0,0,1,1},
+        {0,0,0,0},
+        {0,0,0,0}
+};
+
 void updateBoard(int rows, int cols, int board[rows][cols]);
-void createTetromino(int tetromino[4][4], Tetrominoes type);
+void createTetromino();
 void fallingTetromino();
 void printBoard();
 void debugboard();
@@ -96,19 +125,22 @@ int main(void) {
         colors[S] = GREEN;
 
         InitWindow(SCREENWIDTH, SCREENHEIGHT, "tetris!");
-        SetTargetFPS(1);
+        SetTargetFPS(3);
 
-        createTetromino(tetromino_o, O);
+        createTetromino();
         while (!WindowShouldClose()) {
+
+                if (!isfalling)
+                        createTetromino();
+
                 debugboard();
                 frame++;
                 BeginDrawing();
                 updateBoard(BOARDROWS, BOARDCOLS, board);
                 ClearBackground(BLACK);
                 EndDrawing();
-                if (isfalling) {
-                        fallingTetromino();
-                }
+                fallingTetromino();
+
         }
 
         CloseWindow();
@@ -131,7 +163,7 @@ bool hasCollide() {
                         return true;
                 
                 // Has collide with another tetrominoe
-                if (board[row][col] != 0)
+                if (board[row][col] != 0) 
                         return true;
         }
 
@@ -195,18 +227,49 @@ void debugboard() {
         printf("\n");
 }
 
-void createTetromino(int tetromino[4][4], Tetrominoes type) {
+void move() {
+}
 
+void createTetromino() {
         int i = 0;
-        player.type = type;
+        int (*tetromino)[4];
+
+        isfalling = true;
+        player.type = rand() / (RAND_MAX / (6 - 0 + 1));
+
+        switch (player.type) {
+                case J:
+                        tetromino = tetromino_j;
+                        break;
+                case O:
+                        tetromino = tetromino_o;
+                        break;
+                case T:
+                        tetromino = tetromino_t;
+                        break;
+                case I:
+                        tetromino = tetromino_i;
+                        break;
+                case L:
+                        tetromino = tetromino_l;
+                        break;
+                case Z:
+                        tetromino = tetromino_z;
+                        break;
+                case S:
+                        tetromino = tetromino_s;
+                        break;
+                default:
+                        return; // Exit if the type is invalid
+        }
 
         for (int row = 0; row < 4; row++) {
                 for (int col = 0; col < 4; col++) {
-                       int tetro_cell = tetromino[row][col];
+                        int tetro_cell = tetromino[row][col];
                         if (tetro_cell) {
-                                board[row][col+4] = type;
+                                board[row][col + 4] = player.type;
                                 player.coordinates[i][0] = row;
-                                player.coordinates[i][1] = col+4;
+                                player.coordinates[i][1] = col + 4;
                                 i++;
                         }
                 }
