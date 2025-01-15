@@ -25,12 +25,23 @@ typedef enum {
 } Tetrominoes;
 
 typedef struct {
+        int x;
+        int y;
+} Vector;
+
+typedef struct {
         Tetrominoes type;
-        int coordinates[4][2];
+        Vector coordinates[4];
 
 } Player;
 
-Color colors [8];
+void updateBoard(int rows, int cols, int board[rows][cols]);
+void createTetromino();
+void fallingTetromino();
+void printBoard();
+void debugboard();
+bool hasCollide();
+
 int board[BOARDROWS][BOARDCOLS] = {
         {0, 0, 0, 0, 0, 0, 0, 0, 0, 0},
         {0, 0, 0, 0, 0, 0, 0, 0, 0, 0},
@@ -50,8 +61,6 @@ int board[BOARDROWS][BOARDCOLS] = {
         {0, 0, 0, 0, 0, 0, 0, 0, 0, 0},
 };
 
-bool oncreation = false;
-bool isfalling = true;
 
 int tetromino_j[4][4]= {
         {1,0,0,0},
@@ -102,38 +111,25 @@ int tetromino_z[4][4]= {
         {0,0,0,0}
 };
 
-void updateBoard(int rows, int cols, int board[rows][cols]);
-void createTetromino();
-void fallingTetromino();
-void printBoard();
-void debugboard();
-bool hasCollide();
 
+Color colors[8] = {BLACK, BLUE, YELLOW, MAGENTA, SKYBLUE, ORANGE, RED, GREEN};
 Player player = {0};
 int frame = 0;
-
+bool oncreation = false;
+bool isfalling = true;
 
 int main(void) {
 
-        colors[B] = BLACK;
-        colors[J] = BLUE;
-        colors[O] = YELLOW;
-        colors[T] = MAGENTA;
-        colors[I] = SKYBLUE;
-        colors[L] = ORANGE;
-        colors[Z] = RED;
-        colors[S] = GREEN;
-
         InitWindow(SCREENWIDTH, SCREENHEIGHT, "tetris!");
-        SetTargetFPS(3);
+        SetTargetFPS(1);
 
         createTetromino();
         while (!WindowShouldClose()) {
+                debugboard();
 
                 if (!isfalling)
                         createTetromino();
 
-                debugboard();
                 frame++;
                 BeginDrawing();
                 updateBoard(BOARDROWS, BOARDCOLS, board);
@@ -155,8 +151,8 @@ bool hasCollide() {
         int row = 0;
 
         for (int i = 0; i < 4; i++) {
-                row = player.coordinates[i][0];
-                col = player.coordinates[i][1];
+                row = player.coordinates[i].y;
+                col = player.coordinates[i].x;
 
                 // Has collide with the limit 
                 if (row >= BOARDROWS) 
@@ -173,15 +169,15 @@ bool hasCollide() {
 void fallingTetromino() {
         int *col = 0;
         int *row = 0;
-        int oldCoordinates[4][4] = {0};
+        Vector oldCoordinates[4];
 
         // TODO: 2 for loops, not optimal; fix it.
 
         for (int i = 0; i < 4; i++) {
-                row = &(player.coordinates[i][0]);
-                col = &(player.coordinates[i][1]);
-                oldCoordinates[i][0] = *row;
-                oldCoordinates[i][1] = *col;
+                row = &(player.coordinates[i].y);
+                col = &(player.coordinates[i].x);
+                oldCoordinates[i].y = *row;
+                oldCoordinates[i].x = *col;
 
                 printf("player coordinates %d: ROW-> %d, COL-> %d \n", 
                                 i, *row, *col);
@@ -195,15 +191,15 @@ void fallingTetromino() {
                 isfalling = false;
 
                 for (int i = 0; i < 4; i++) {
-                        player.coordinates[i][0] = oldCoordinates[i][0];
-                        player.coordinates[i][1] = oldCoordinates[i][1];
-                        board[player.coordinates[i][0]][player.coordinates[i][1]] = player.type;
+                        player.coordinates[i].y = oldCoordinates[i].y;
+                        player.coordinates[i].x = oldCoordinates[i].x;
+                        board[player.coordinates[i].y][player.coordinates[i].x] = player.type;
                 }
 
         } else {
                 for (int i = 0; i < 4; i++) {
-                        row = &(player.coordinates[i][0]);
-                        col = &(player.coordinates[i][1]);
+                        row = &(player.coordinates[i].y);
+                        col = &(player.coordinates[i].x);
                         board[*row][*col] = player.type;
                 }
         }
@@ -235,9 +231,15 @@ void createTetromino() {
         int (*tetromino)[4];
 
         isfalling = true;
+
+        /* TODO: Fix random generation: I should generate batches of 7 figures and
+               deliver them one by one 
+         */
+
         player.type = rand() / (RAND_MAX / (6 - 0 + 1));
 
         switch (player.type) {
+                case B:
                 case J:
                         tetromino = tetromino_j;
                         break;
@@ -260,16 +262,17 @@ void createTetromino() {
                         tetromino = tetromino_s;
                         break;
                 default:
-                        return; // Exit if the type is invalid
+                        exit(1);
         }
 
         for (int row = 0; row < 4; row++) {
                 for (int col = 0; col < 4; col++) {
                         int tetro_cell = tetromino[row][col];
+                        // If the cell is not zero it saves the coordinate
                         if (tetro_cell) {
                                 board[row][col + 4] = player.type;
-                                player.coordinates[i][0] = row;
-                                player.coordinates[i][1] = col + 4;
+                                player.coordinates[i].y = row;
+                                player.coordinates[i].x = col + 4;
                                 i++;
                         }
                 }
@@ -295,36 +298,36 @@ void updateBoard(int rows, int cols, int board[rows][cols]) {
                         int cell = board[row][col];
 
                         switch(cell) {
-                                case 0:
-                                        DrawRectangleRec(block, colors[0]);
+                                case B:
+                                        DrawRectangleRec(block, colors[B]);
                                         DrawRectangleLinesEx(block, 1.0, LIGHTGRAY);
                                         break;
-                                case 1:
-                                        DrawRectangleRec(block, colors[1]);
+                                case J:
+                                        DrawRectangleRec(block, colors[J]);
                                         DrawRectangleLinesEx(block, 1.0, LIGHTGRAY);
                                         break;
-                                case 2:
-                                        DrawRectangleRec(block, colors[2]);
+                                case O:
+                                        DrawRectangleRec(block, colors[O]);
                                         DrawRectangleLinesEx(block, 1.0, LIGHTGRAY);
                                         break;
-                                case 3:
-                                        DrawRectangleRec(block, colors[3]);
+                                case T:
+                                        DrawRectangleRec(block, colors[T]);
                                         DrawRectangleLinesEx(block, 1.0, LIGHTGRAY);
                                         break;
-                                case 4:
-                                        DrawRectangleRec(block, colors[4]);
+                                case I:
+                                        DrawRectangleRec(block, colors[I]);
                                         DrawRectangleLinesEx(block, 1.0, LIGHTGRAY);
                                         break;
-                                case 5:
-                                        DrawRectangleRec(block, colors[5]);
+                                case L:
+                                        DrawRectangleRec(block, colors[L]);
                                         DrawRectangleLinesEx(block, 1.0, LIGHTGRAY);
                                         break;
-                                case 6:
-                                        DrawRectangleRec(block, colors[6]);
+                                case Z:
+                                        DrawRectangleRec(block, colors[Z]);
                                         DrawRectangleLinesEx(block, 1.0, LIGHTGRAY);
                                         break;
-                                case 7:
-                                        DrawRectangleRec(block, colors[7]);
+                                case S:
+                                        DrawRectangleRec(block, colors[S]);
                                         DrawRectangleLinesEx(block, 1.0, LIGHTGRAY);
                                         break;
                                 default:
