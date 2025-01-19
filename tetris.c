@@ -110,7 +110,7 @@ Tetromino *get_tetromino();
 Tetromino *create_tetromino();
 void copy_coordinates(Vector src[4], Vector dst[4]);
 Tetromino clear_player_from_board();
-void update_tetromino_coordinates(Tetromino *t, enum_Movement mov);
+bool update_tetromino_coordinates(Tetromino *t, enum_Movement mov);
 void fall();
 int has_collide_with_limits(Tetromino t);
 int has_collide_with_tetromino(Tetromino *t);
@@ -119,6 +119,7 @@ void shuffle_batch(Tetromino *batch[7]);
 void move(Tetromino *t);
 void set_board(Vector coordinates[4], enum_Tetrominoes type);
 Vector vector_rotate(Vector v, float angle);
+void correct_if_possible(Tetromino *t);
 
 int main(void) {
         srand(time(NULL));
@@ -181,6 +182,14 @@ int main(void) {
         return 0;
 }
 
+// CHECK THIS FOR A POSSIBLE REFACTOR
+void correct_if_possible(Tetromino *t) {
+        if (update_tetromino_coordinates(t, DOWN)) {
+                update_tetromino_coordinates(t, UP);
+                set_board(t->coord, t->type);
+        }
+}
+
 void move(Tetromino *t) {
         int direction = 0;
         bool keypressed = true;
@@ -198,7 +207,9 @@ void move(Tetromino *t) {
         }
 
         if (keypressed) {
-                update_tetromino_coordinates(t, direction);
+                if(!update_tetromino_coordinates(t, direction)) {
+                        correct_if_possible(t);
+                }
         }
 }
 
@@ -299,7 +310,7 @@ bool collision_system_ok(Tetromino *t) {
 }
 
 
-void update_tetromino_coordinates(Tetromino *t, enum_Movement mov) {
+bool update_tetromino_coordinates(Tetromino *t, enum_Movement mov) {
         Tetromino vt = {0};
         clear_player_from_board();
         memcpy(&vt, t, sizeof(*t));
@@ -352,7 +363,10 @@ void update_tetromino_coordinates(Tetromino *t, enum_Movement mov) {
                 copy_coordinates(vt.coord, t->coord);
                 t->pivot = vt.pivot;
                 set_board(t->coord, t->type);
+                return true;
         };
+
+        return false;
 }
 
 void fall () {
