@@ -4,8 +4,11 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <time.h>
 
-// TODO:Implement a memory management system
+// TODO: Implement a memory management system
+// TODO: Implement SPIN LOCK
+// TODO: Implement SUPER ROTATION SYSTEM 
 
 #define SCREENWIDTH     800
 #define SCREENHEIGHT    800
@@ -16,29 +19,9 @@
 #define PADDINGX        (SCREENWIDTH - BOARDCOLS * BLOCKSIZE)
 #define PADDINGY        (SCREENHEIGHT - BOARDROWS * BLOCKSIZE)
 #define OFFSET          3
+#define EMPTYCELL       -1
 
-int board[BOARDROWS][BOARDCOLS] = {
-        {-1, -1, -1, -1, -1, -1, -1, -1, -1, -1},
-        {-1, -1, -1, -1, -1, -1, -1, -1, -1, -1},
-        {-1, -1, -1, -1, -1, -1, -1, -1, -1, -1},
-        {-1, -1, -1, -1, -1, -1, -1, -1, -1, -1},
-        {-1, -1, -1, -1, -1, -1, -1, -1, -1, -1},
-        {-1, -1, -1, -1, -1, -1, -1, -1, -1, -1},
-        {-1, -1, -1, -1, -1, -1, -1, -1, -1, -1},
-        {-1, -1, -1, -1, -1, -1, -1, -1, -1, -1},
-        {-1, -1, -1, -1, -1, -1, -1, -1, -1, -1},
-        {-1, -1, -1, -1, -1, -1, -1, -1, -1, -1},
-        {-1, -1, -1, -1, -1, -1, -1, -1, -1, -1},
-        {-1, -1, -1, -1, -1, -1, -1, -1, -1, -1},
-        {-1, -1, -1, -1, -1, -1, -1, -1, -1, -1},
-        {-1, -1, -1, -1, -1, -1, -1, -1, -1, -1},
-        {-1, -1, -1, -1, -1, -1, -1, -1, -1, -1},
-        {-1, -1, -1, -1, -1, -1, -1, -1, -1, -1},
-        {-1, -1, -1, -1, -1, -1, -1, -1, -1, -1},
-        {-1, -1, -1, -1, -1, -1, -1, -1, -1, -1},
-        {-1, -1, -1, -1, -1, -1, -1, -1, -1, -1},
-        {-1, -1, -1, -1, -1, -1, -1, -1, -1, -1},
-};
+int board[BOARDROWS][BOARDCOLS];
 
 Color colors[8] = {BLUE, YELLOW, MAGENTA, SKYBLUE, ORANGE, RED, GREEN};
 
@@ -61,6 +44,24 @@ typedef enum {
         ROTATE_L,
 } enum_Movement;
 
+typedef enum {
+        RIGHTLINE = 1,
+        LEFTLINE,
+        BOTOMLINE,
+        SKYLINE,
+} enum_Limits;
+
+typedef enum {
+        GENERATION,
+        FALLING,
+        LOCK,
+        PATTERN,
+        ITERATE,
+        ANIMATE,
+        ELIMINATE,
+        COMPLETION
+} enum_game_state;
+
 typedef struct {
         int32_t x;
         int32_t y;
@@ -71,6 +72,10 @@ typedef struct {
         int32_t id;
         enum_Tetrominoes type;
         bool alive;
+        bool is_rotating;
+        enum_Movement last_move;
+        Vector2 pivot;
+        
 } Tetromino;
 
 typedef struct {
@@ -93,8 +98,10 @@ int64_t entities_len = 0;
 Tetromino **entities;
 float fallInterval = 1.0f;
 float fallTimer = 0.0f;
-bool falling = false;
+int game_state = 0;
 Game player = {0};
+/*int screen_width = SCREENWIDTH;*/
+/*int screen_height = SCREENHEIGHT;*/
 
 void refreshBoard();
 void cleanup();
@@ -103,31 +110,64 @@ Tetromino *get_tetromino();
 Tetromino *create_tetromino();
 void copy_coordinates(Vector src[4], Vector dst[4]);
 Tetromino clear_player_from_board();
-void update_player_coordinates(Game player, enum_Movement mov);
+void update_tetromino_coordinates(Tetromino *t, enum_Movement mov);
 void fall();
+int has_collide_with_limits(Tetromino t);
+int has_collide_with_tetromino(Tetromino *t);
+bool collision_system_ok(Tetromino *t);
+void shuffle_batch(Tetromino *batch[7]);
+void move(Tetromino *t);
+void set_board(Vector coordinates[4], enum_Tetrominoes type);
+Vector vector_rotate(Vector v, float angle);
 
 int main(void) {
+        srand(time(NULL));
+        memset(board, EMPTYCELL, sizeof(board));
 
         // TODO: Manage allocated size and resize it!
         entities = malloc(sizeof(Tetromino *) * allocated_size);
 
+        /*SetConfigFlags(FLAG_WINDOW_RESIZABLE);*/
         InitWindow(SCREENWIDTH, SCREENHEIGHT, "tetrix!");
         SetTargetFPS(60);
 
+        game_state = GENERATION;
         while (!WindowShouldClose()) {
+                /*if (IsWindowResized() && !IsWindowFullscreen()) {*/
+                /*        screen_width = GetScreenWidth();*/
+                /*        screen_height = GetScreenHeight();*/
+                /*}*/
                 fallTimer += GetFrameTime();
 
-                if (!falling) {
-                        Tetromino *t = get_tetromino();
-                        entities[entities_len - 1] = t;
-                        player.tetromino = entities[entities_len - 1];
-                        falling = true;
+                switch(game_state) {
+                        case GENERATION:
+                                Tetromino *t = get_tetromino();
+                                entities[entities_len - 1] = t;
+                                player.tetromino = entities[entities_len - 1];
+                                game_state = FALLING;
+                                break;
+                        case FALLING:
+                                if (fallTimer >= fallInterval) {
+                                        fall();
+                                        fallTimer = 0.0f;
+                                }
+                                break;
+                        case LOCK:
+                                break;
+                        case PATTERN:
+                                break;
+                        case ITERATE:
+                                break;
+                        case ANIMATE:
+                                break;
+                        case ELIMINATE:
+                                break;
+                        case COMPLETION:
+                                break;
+                        default:
                 }
 
-                if (fallTimer >= fallInterval) {
-                        fall();
-                        fallTimer = 0.0f;
-                }
+                move(player.tetromino);
 
                 refreshBoard();
                 BeginDrawing();
@@ -141,6 +181,39 @@ int main(void) {
         return 0;
 }
 
+void move(Tetromino *t) {
+        int direction = 0;
+        bool keypressed = true;
+
+        if (IsKeyPressed(KEY_RIGHT)) {
+                direction = RIGHT;
+        } else if (IsKeyPressed(KEY_LEFT)) {
+                direction = LEFT;
+        } else if (IsKeyDown(KEY_DOWN)) {
+                direction = DOWN;
+        } else if (IsKeyPressed(KEY_UP)) {
+                direction = ROTATE_R;
+        } else {
+                keypressed = false;
+        }
+
+        if (keypressed) {
+                update_tetromino_coordinates(t, direction);
+        }
+}
+
+Vector vector_rotate(Vector v, float angle) {
+    Vector result = { 0 };
+
+    float cosres = cosf(angle);
+    float sinres = sinf(angle);
+
+    result.x = roundf(v.x * cosres - v.y * sinres);
+    result.y = roundf(v.x * sinres + v.y * cosres);
+
+    return result;
+}
+
 void set_board(Vector coordinates[4], enum_Tetrominoes type) {
 
         for (int i = 0; i < 4; i++)
@@ -151,56 +224,120 @@ void set_board(Vector coordinates[4], enum_Tetrominoes type) {
 Tetromino clear_player_from_board() {
         Tetromino old_state = {0};
         memcpy(&old_state, &player, sizeof(Game));
-        set_board(player.tetromino->coord, -1);
+        set_board(player.tetromino->coord, EMPTYCELL);
         return old_state;
 }
 
-bool collision_system() {
+int has_collide_with_limits(Tetromino t) {
 
+        int row = 0;
+        int col = 0;
+
+        for (int i = 0; i < 4; i++) {
+                col = t.coord[i].x;
+                row = t.coord[i].y;
+
+                if (row >= BOARDROWS)
+                        return BOTOMLINE;
+
+                if (row < 0) 
+                        return SKYLINE;
+
+                if(col >= BOARDCOLS)
+                        return RIGHTLINE;
+
+                if (col < 0)
+                        return LEFTLINE;
+        }
+
+                return 0;
+}
+
+int has_collide_with_tetromino(Tetromino *t) {
+
+        int8_t row = 0;
+        int8_t col = 0;
+        int8_t cell = 0;
+
+        for (int i = 0; i < 4; i++) {
+                col = t->coord[i].x;
+                row = t->coord[i].y;
+                cell = board[row][col];
+
+                if (cell != EMPTYCELL) {
+                        return cell;
+                }
+        }
+                return t->id;
+}
+
+bool collision_system_ok(Tetromino *t) {
+
+        switch(has_collide_with_limits(*t)) {
+                case BOTOMLINE:
+                        game_state = GENERATION;
+                        return false;
+                        break;
+                case SKYLINE:
+                case RIGHTLINE:
+                case LEFTLINE:
+                        return false;
+                        break;
+                default:
+                        break;
+        }
+
+        if (has_collide_with_tetromino(t) != t->id && !t->is_rotating) {
+                game_state = GENERATION;
+                return false;
+        } else if (has_collide_with_tetromino(t) == t->id) {
+                game_state = FALLING;
+                return true;
+        } 
+
+        return true;
 }
 
 
-
-void update_player_coordinates(Game player, enum_Movement mov) {
-        Vector vcoord[4] = {0};
-        copy_coordinates(player.tetromino->coord, vcoord);
+void update_tetromino_coordinates(Tetromino *t, enum_Movement mov) {
+        Tetromino vt = {0};
+        clear_player_from_board();
+        memcpy(&vt, t, sizeof(*t));
 
         switch(mov) {
                 case UP:
-                        for (int i = 0; i < 4; i++) vcoord[i].y--;
+                        for (int i = 0; i < 4; i++) vt.coord[i].y--;
+                        vt.pivot.y--;
 
                         break;
                 case DOWN:
-                        for (int i = 0; i < 4; i++) vcoord[i].y++;
-
+                        for (int i = 0; i < 4; i++) vt.coord[i].y++;
+                        vt.pivot.y++;
 
                         break;
                 case LEFT:
-                        for (int i = 0; i < 4; i++) vcoord[i].x--;
-
+                        for (int i = 0; i < 4; i++) vt.coord[i].x--;
+                        vt.pivot.x--;
 
                         break;
                 case RIGHT:
-                        for (int i = 0; i < 4; i++) vcoord[i].x++;
+                        for (int i = 0; i < 4; i++) vt.coord[i].x++;
+                        vt.pivot.x++;
 
                         break;
 
                 case ROTATE_R:
 
-                        /*if (player.tetromino.type == O) */
-                        /*        break;*/
-                        /**/
-                        /*int t = 0;*/
-                        /**/
-                        /*for (int i = 0; i < 4; i++) {*/
-                        /**/
-                        /*        vcoord[i].x -= pivot.x;*/
-                        /*        vcoord[i].y -= pivot.y;*/
-                        /*        vcoord[i] = vectorRotate(vcoord[i], DEG2RAD * 90.0f);*/
-                        /*        vcoord[i].x += pivot.x;*/
-                        /*        vcoord[i].y += pivot.y;*/
-                        /*}*/
-                        /**/
+                        if (vt.type == O) 
+                                break;
+
+                        for (int i = 0; i < 4; i++) {
+                                vt.coord[i].x -= vt.pivot.x;
+                                vt.coord[i].y -= vt.pivot.y;
+                                vt.coord[i] = vector_rotate(vt.coord[i], DEG2RAD * 90.0f);
+                                vt.coord[i].x += vt.pivot.x;
+                                vt.coord[i].y += vt.pivot.y;
+                        }
 
                         break;
 
@@ -210,15 +347,16 @@ void update_player_coordinates(Game player, enum_Movement mov) {
                 default:
                         exit(1);
         }
-        copy_coordinates(vcoord, player.tetromino->coord);
+
+        if(collision_system_ok(&vt)) {
+                copy_coordinates(vt.coord, t->coord);
+                t->pivot = vt.pivot;
+                set_board(t->coord, t->type);
+        };
 }
 
 void fall () {
-        Tetromino old_state = clear_player_from_board();
-
-        update_player_coordinates(player, DOWN);
-        set_board(player.tetromino->coord, player.tetromino->type);
-
+        update_tetromino_coordinates(player.tetromino, DOWN);
 }
 
 inline void copy_coordinates(Vector src[4], Vector dst[4]) {
@@ -229,10 +367,18 @@ inline void copy_coordinates(Vector src[4], Vector dst[4]) {
         }
 }
 
-void swap(Tetromino *a, Tetromino *b) {
-        Tetromino *t = a;
-        a = b;
-        b = t;
+void swap(Tetromino **a, Tetromino **b) {
+        Tetromino *t = *a;
+        *a = *b;
+        *b = t;
+}
+
+void shuffle_batch(Tetromino *batch[7]) {
+
+        for (int i = 6; i > 0; i--) {
+                int j = rand() % (i + 1);
+                swap(&batch[i], &batch[j]);
+        }
 }
 
 Tetromino *get_tetromino() {
@@ -243,8 +389,10 @@ Tetromino *get_tetromino() {
         if (counter >= 7)
                 counter = 0;
 
-        if (counter == 0)
+        if (counter == 0) {
                 create_batch(batch);
+                shuffle_batch(batch);
+        }
 
         t = batch[counter];
         t->id = entities_len;
@@ -258,6 +406,10 @@ Tetromino *create_tetromino() {
                 t->type = 0;
                 t->id = 0;
                 t->alive = true;
+                t->is_rotating = false;
+                t->last_move = 0;
+                t->pivot.x = 1.0f + 3.0f;
+                t->pivot.y = 1.0f; 
                 return t;
 }
 
@@ -312,7 +464,7 @@ void refreshBoard() {
 
                         int cell = board[row][col];
 
-                        if (cell == -1) {
+                        if (cell == EMPTYCELL) {
                                 DrawRectangleRec(block, BLACK);
                                 DrawRectangleLinesEx(block, 1.0, LIGHTGRAY);
                         } else {
