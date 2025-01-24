@@ -6,8 +6,16 @@
 #include <string.h>
 #include <time.h>
 
+
+// TODO: Implement ghost tetromino
+// TODO: Implement score
+// TODO: Implement keypressed loop
+// TODO: Implement hard drop
 // TODO: Implement a memory management system
 // TODO: Implement resizable window
+// TODO: Implement Holding mechanic
+// TODO: Refactor SRS
+// TODO: Implement queue visualizer
 
 #define SCREENWIDTH     800
 #define SCREENHEIGHT    800
@@ -181,9 +189,9 @@ int main(void) {
                                 Tetromino *t = get_tetromino();
                                 entities[entities_len - 1] = t;
                                 player.tetromino = entities[entities_len - 1];
-                                if (player.tetromino->type == I) {
-                                        update_tetromino_coordinates(player.tetromino, DOWN);
-                                }
+                                /*if (player.tetromino->type == I) {*/
+                                /*        update_tetromino_coordinates(player.tetromino, DOWN);*/
+                                /*}*/
 
                                 game_state = FALLING;
                                 break;
@@ -241,6 +249,8 @@ void move(Tetromino *t) {
                 direction = DOWN;
         } else if (IsKeyPressed(KEY_UP)) {
                 direction = ROTATE_R;
+        } else if (IsKeyPressed(KEY_Z)) {
+                direction = ROTATE_L;
         } else {
                 keypressed = false;
         }
@@ -486,6 +496,17 @@ bool update_tetromino_coordinates(Tetromino *t, enum_Movement mov) {
 
                 case ROTATE_L:
 
+                        if (vt.type == O) 
+                                break;
+
+                        for (int i = 0; i < 4; i++) {
+                                vt.coord[i].x -= vt.pivot.x;
+                                vt.coord[i].y -= vt.pivot.y;
+                                vt.coord[i] = vector_rotate(vt.coord[i], DEG2RAD * -90.0f);
+                                vt.coord[i].x += vt.pivot.x;
+                                vt.coord[i].y += vt.pivot.y;
+                        }
+
                         break;
                 default:
                         exit(1);
@@ -561,6 +582,11 @@ Tetromino *get_tetromino() {
 
         t = batch[counter];
         t->id = entities_len;
+
+        if (t->type == I) {
+                add_xy_to_tetromino(t, 0, 1);
+        }
+
         entities_len++;
         counter++;
         return t;
