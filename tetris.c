@@ -181,6 +181,10 @@ int main(void) {
                                 Tetromino *t = get_tetromino();
                                 entities[entities_len - 1] = t;
                                 player.tetromino = entities[entities_len - 1];
+                                if (player.tetromino->type == I) {
+                                        update_tetromino_coordinates(player.tetromino, DOWN);
+                                }
+
                                 game_state = FALLING;
                                 break;
                         case FALLING:
@@ -580,6 +584,11 @@ void create_batch(Tetromino *batch[7]) {
                 Tetromino *t = create_tetromino(); 
                 t->type = i;
                 copy_coordinates(shapes[i], t->coord);
+
+                if ( t->type == I) {
+                        t->pivot.y = 0.0f;
+                }
+
                 for (int j = 0; j < 4; j++) t->coord[j].x += OFFSET;
                 batch[i] = t;
         }
