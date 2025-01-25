@@ -6,15 +6,11 @@
 #include <string.h>
 #include <time.h>
 
-
 // TODO: Implement ghost tetromino
 // TODO: Implement score
 // TODO: Implement keypressed loop
-// TODO: Implement hard drop
 // TODO: Implement a memory management system
 // TODO: Implement resizable window
-// TODO: Implement Holding mechanic
-// TODO: Refactor SRS
 // TODO: Implement queue visualizer
 
 #define SCREENWIDTH     800
@@ -87,6 +83,8 @@ typedef struct {
 
 typedef struct {
         Tetromino *tetromino;
+        Tetromino *hold;
+        bool can_hold;
 } Game;
 
 Vector shapes[7][4] = {
@@ -99,34 +97,28 @@ Vector shapes[7][4] = {
         { {1,0}, {2,0}, {0,1}, {1,1} }, // S
 };
 
-/* 
-   0 = spawn state
-   1 = state resulting from a clockwise rotation ("right") from spawn
-   2 = state resulting from 2 successive rotations in either direction from spawn.
-   3 = state resulting from a counter-clockwise ("left") rotation from spawn
-*/
-Vector srs_offsets_right[][4] = {
+Vector srs_offsets_right[4][4] = {
         { {-1,0}, {-1,1}, {0,-2}, {-1,-2} },
         { {1,0}, {1,-1}, {0,2}, {1,2} },
         { {1,0}, {1,1}, {0,-2}, {1,-2} },
         { {-1,0}, {-1,-1}, {0,2}, {-1,2} },
 };
 
-Vector srs_offsets_left[][4] = {
+Vector srs_offsets_left[4][4] = {
         { {1,0}, {1,1}, {0,-2}, {1,-2} },
         { {-1,0}, {-1,-1}, {0,2}, {-1,2} },
         { {-1,0}, {-1,1}, {0,-2}, {-1,-2} },
         { {1,0}, {1,-1}, {0,2}, {1,2} },
 };
 
-Vector srs_offsets_i_right[][4] = {
+Vector srs_offsets_i_right[4][4] = {
         { {-2,0}, {1,0}, {-2,-1}, {1,2} },
         { {-1,0}, {2,0}, {-1,2}, {2,-1} },
         { {2,0}, {-1,0}, {2,1}, {-1,-2} },
         { {1,0}, {-2,0}, {1,-2}, {-2,1} },
 };
 
-Vector srs_offsets_i_left[][4] = {
+Vector srs_offsets_i_left[4][4] = {
         { {-1,0}, {2,0}, {-1,2}, {2,-1} },
         { {-2,0}, {1,0}, {-2,-1}, {1,2} },
         { {1,0}, {-2,0}, {1,-2}, {-2,1} },
@@ -136,7 +128,7 @@ Vector srs_offsets_i_left[][4] = {
 
 int64_t allocated_size = 1024;
 int64_t entities_len = 0;
-Tetromino **entities;
+Tetromino **entities = 0;
 float lock_interval = 0.5f; 
 float lock_timer = 0.0f; 
 float fall_interval = 1.0f;
@@ -163,10 +155,13 @@ void set_board(Vector coordinates[4], enum_Tetrominoes type);
 Vector vector_rotate(Vector v, float angle);
 bool super_rotation_system(Tetromino *t, enum_Movement mov);
 void add_xy_to_tetromino(Tetromino *t, int x, int y);
+void swap(Tetromino **a, Tetromino **b);
 
 int main(void) {
         srand(time(NULL));
         memset(board, EMPTYCELL, sizeof(board));
+        player.hold = NULL;
+        player.can_hold = true;
 
         // TODO: Manage allocated size and resize it!
         entities = malloc(sizeof(Tetromino *) * allocated_size);
@@ -203,7 +198,7 @@ int main(void) {
                                 break;
                         case LOCK:
                                 if (lock_timer >= lock_interval) {
-                                        game_state = GENERATION;
+                                        game_state = COMPLETION;
                                         lock_timer = 0.0f;
                                         break;
                                 } else {
@@ -219,6 +214,8 @@ int main(void) {
                         case ELIMINATE:
                                 break;
                         case COMPLETION:
+                                game_state = GENERATION;
+                                player.can_hold = true;
                                 break;
                         default:
                 }
@@ -239,7 +236,7 @@ int main(void) {
 
 void move(Tetromino *t) {
         int direction = 0;
-        bool keypressed = true;
+        bool should_move = true;
 
         if (IsKeyPressed(KEY_RIGHT)) {
                 direction = RIGHT;
@@ -251,11 +248,33 @@ void move(Tetromino *t) {
                 direction = ROTATE_R;
         } else if (IsKeyPressed(KEY_Z)) {
                 direction = ROTATE_L;
+        } else if (IsKeyPressed(KEY_SPACE)) {
+                while (update_tetromino_coordinates(t, DOWN));
+                should_move = false;
+        } else if (player.can_hold && IsKeyPressed(KEY_C)) {
+                player.can_hold = false;
+                clear_player_from_board();
+                if (player.hold == NULL) {
+                        player.hold = t;
+                        game_state = GENERATION;
+                } else {
+                        swap(&player.hold, &player.tetromino);
+                        copy_coordinates(shapes[player.tetromino->type], player.tetromino->coord);
+                        add_xy_to_tetromino(player.tetromino, OFFSET, 0);
+
+                        if (player.tetromino->type != I) {
+                                player.tetromino->pivot.x = 1.0f + 3.0f;
+                                player.tetromino->pivot.y = 1.0f; 
+                        } else {
+                                player.tetromino->pivot.y = 0.0f;
+                        }
+                }
+                should_move = false;
         } else {
-                keypressed = false;
+                should_move = false;
         }
 
-        if (keypressed) {
+        if (should_move) {
                 update_tetromino_coordinates(t, direction);
         }
 }
@@ -288,89 +307,42 @@ Tetromino clear_player_from_board() {
 
 bool super_rotation_system(Tetromino *t, enum_Movement mov) {
 
-        if (t->type != I) {
-                if (mov == ROTATE_R) {
-                        for (int i = 0; i < 4; i++) {
-                                add_xy_to_tetromino(t,
-                                                srs_offsets_right[t->rotation_state][i].x,
-                                                srs_offsets_right[t->rotation_state][i].y);
+        Vector (*ptr_srs_offsets)[4][4];
 
-                                if (t->rotation_state == 3) {
-                                        t->rotation_state = 0;
-                                } else {
-                                        t->rotation_state++;
-                                }
+        if (t->type == I) {
+                if (mov == ROTATE_R)
+                        ptr_srs_offsets = &srs_offsets_i_right;
+                else
+                        ptr_srs_offsets = &srs_offsets_i_left;
 
-                                if (collision_system_ok(t)) {
-                                        return true;
-                                } else {
-                                        add_xy_to_tetromino(t,
-                                                        srs_offsets_right[t->rotation_state][i].x * -1,
-                                                        srs_offsets_right[t->rotation_state][i].y * -1);
-                                }
-                        }
-                } else if (mov == ROTATE_L) {
-                        for (int i = 0; i < 4; i++) {
-                                if (t->rotation_state >= 4) {
-                                        t->rotation_state = 0;
-                                } else {
-                                        t->rotation_state++;
-                                }
-                                add_xy_to_tetromino(t,
-                                                srs_offsets_left[t->rotation_state][i].x,
-                                                srs_offsets_left[t->rotation_state][i].y);
-
-                                if (collision_system_ok(t)) {
-                                        return true;
-                                } else {
-                                        add_xy_to_tetromino(t,
-                                                        srs_offsets_left[t->rotation_state][i].x * -1,
-                                                        srs_offsets_left[t->rotation_state][i].y * -1);
-                                }
-                        }
-                }
         } else {
-                if (mov == ROTATE_R) {
-                        for (int i = 0; i < 4; i++) {
-                                add_xy_to_tetromino(t,
-                                                srs_offsets_i_right[t->rotation_state][i].x,
-                                                srs_offsets_i_right[t->rotation_state][i].y);
-
-                                if (t->rotation_state == 3) {
-                                        t->rotation_state = 0;
-                                } else {
-                                        t->rotation_state++;
-                                }
-
-                                if (collision_system_ok(t)) {
-                                        return true;
-                                } else {
-                                        add_xy_to_tetromino(t,
-                                                        srs_offsets_i_right[t->rotation_state][i].x * -1,
-                                                        srs_offsets_i_right[t->rotation_state][i].y * -1);
-                                }
-                        }
-                } else if (mov == ROTATE_L) {
-                        for (int i = 0; i < 4; i++) {
-                                if (t->rotation_state >= 4) {
-                                        t->rotation_state = 0;
-                                } else {
-                                        t->rotation_state++;
-                                }
-                                add_xy_to_tetromino(t,
-                                                srs_offsets_i_left[t->rotation_state][i].x,
-                                                srs_offsets_i_left[t->rotation_state][i].y);
-
-                                if (collision_system_ok(t)) {
-                                        return true;
-                                } else {
-                                        add_xy_to_tetromino(t,
-                                                        srs_offsets_i_left[t->rotation_state][i].x * -1,
-                                                        srs_offsets_i_left[t->rotation_state][i].y * -1);
-                                }
-                        }
-                }
+                if (mov == ROTATE_R)
+                        ptr_srs_offsets = &srs_offsets_right;
+                else
+                        ptr_srs_offsets = &srs_offsets_left;
         }
+
+
+        for (int i = 0; i < 4; i++) {
+                add_xy_to_tetromino(t,
+                                (*ptr_srs_offsets)[t->rotation_state][i].x,
+                                (*ptr_srs_offsets)[t->rotation_state][i].y);
+
+                if (t->rotation_state == 3)
+                        t->rotation_state = 0;
+                else
+                        t->rotation_state++;
+
+
+                if (collision_system_ok(t))
+                        return true;
+                else
+                        add_xy_to_tetromino(t,
+                                        (*ptr_srs_offsets)[t->rotation_state][i].x * -1,
+                                        (*ptr_srs_offsets)[t->rotation_state][i].y * -1);
+        }
+
+
         return false;
 }
 
@@ -640,14 +612,14 @@ void refresh_board() {
 
         // Check this for loop;
         for (int i = 0; i < entities_len; i++) {
-                Tetromino t;
-                t = *entities[i];
+                Tetromino *t;
+                t = entities[i];
 
-                if (t.alive) 
+                if (t->alive && t != player.hold) 
                         for (int j = 0; j < 4; j++) {
-                                int x = t.coord[j].x;
-                                int y = t.coord[j].y;
-                                board[y][x] = t.id;
+                                int x = t->coord[j].x;
+                                int y = t->coord[j].y;
+                                board[y][x] = t->id;
                         }
         }
 
