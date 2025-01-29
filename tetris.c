@@ -154,7 +154,7 @@ void refresh_board()
                         for (int j = 0; j < 4; j++) {
                                 int x = t->coord[j].x;
                                 int y = t->coord[j].y;
-                                if (x == EMPTYCELL || y == EMPTYCELL) 
+                                if (x == EMPTYCELL || y == EMPTYCELL || x < 0 || x > BOARDCOLS || y < 0 || y > BOARDROWS) 
                                         continue;
 
                                 board[y][x] = t->id;
@@ -513,7 +513,10 @@ void clear_lines()
                 clean_row = true;
                 Vector pos = player.tetromino->coord[i];
 
+                // CHECK THIS LINE
                 for (int col = 0; col < BOARDCOLS; col++) {
+                        if (pos.y == EMPTYCELL)
+                                break;
                         if (board[pos.y][col] == EMPTYCELL) {
                                 clean_row = false;
                                 break;
@@ -522,6 +525,8 @@ void clear_lines()
 
                 if (clean_row) {
                         for (int col = 0; col < BOARDCOLS; col++) {
+                                if (pos.y == EMPTYCELL)
+                                        break;
                                 int id = board[pos.y][col];
                                 for (int i = 0; i < 4; i++) {
                                         if (entities[id]->coord[i].x == col 
@@ -542,11 +547,12 @@ void clear_lines()
                 size_t row_size = sizeof(board[0]); // Size of one row
                 memmove(board + lines_erased, board, (BOARDROWS - lines_erased) * row_size);
 
-                for (int row = 0; row < lines_erased; row++) {
-                        for (int col = 0; col < BOARDCOLS; col++) {
-                                board[row][col] = EMPTYCELL;
-                        }
-                }
+                /*for (int row = 0; row < lines_erased; row++) {*/
+                /*        for (int col = 0; col < BOARDCOLS; col++) {*/
+                /*                board[row][col] = EMPTYCELL;*/
+                /*        }*/
+                /*}*/
+
                 for (int i = 0; i < entities_len; i++) {
                         add_xy_to_tetromino_secure(entities[i], 0, lines_erased);
                 }
