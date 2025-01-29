@@ -1,5 +1,6 @@
 #include "tetris.h"
 
+// TODO: memset is not that good with values different a -0 CHECK
 // TODO: Implement ghost tetromino
 // TODO: Implement score
 // TODO: Implement keypressed loop
@@ -71,7 +72,7 @@ void add_xy_to_tetromino(Tetromino *t, int x, int y)
 {
 
         for (int i = 0; i < 4; i++) {
-                if (t->coord[i].x == OUTOFGAME || t->coord[i].y == OUTOFGAME)
+                if (t->coord[i].x == EMPTYCELL || t->coord[i].y == EMPTYCELL)
                         continue;
 
                 t->coord[i].x += x;
@@ -148,11 +149,12 @@ void refresh_board()
                 Tetromino *t;
                 t = entities[i];
 
-                if (t->alive && t != player.hold) 
+                // TODO: remove alive prop from tetromino
+                if (t != player.hold) 
                         for (int j = 0; j < 4; j++) {
                                 int x = t->coord[j].x;
                                 int y = t->coord[j].y;
-                                if (x == OUTOFGAME || y == OUTOFGAME) 
+                                if (x == EMPTYCELL || y == EMPTYCELL) 
                                         continue;
 
                                 board[y][x] = t->id;
@@ -420,7 +422,7 @@ int has_collide_with_tetromino(const Tetromino *t)
                 row = t->coord[i].y;
                 cell = board[row][col];
 
-                if (row == OUTOFGAME || col == OUTOFGAME)
+                if (row == EMPTYCELL || col == EMPTYCELL)
                         continue;
 
                 if (cell != EMPTYCELL) {
@@ -501,49 +503,52 @@ bool super_rotation_system(Tetromino *t, enum_Movement move)
         return false;
 }
 
-void clean_lines()
+void clear_lines()
 {
-        int lines_errased = 0;
-        for (int row = 0; row < BOARDROWS; row++) {
-                bool clean_row = false;
+
+        int lines_erased = 0;
+        bool clean_row = true;
+
+        for (int i = 0; i < 4; i++) {
+                clean_row = true;
+                Vector pos = player.tetromino->coord[i];
 
                 for (int col = 0; col < BOARDCOLS; col++) {
-                        if (board[row][col] != EMPTYCELL) {
-                                clean_row = true;
-                        } else {
+                        if (board[pos.y][col] == EMPTYCELL) {
                                 clean_row = false;
                                 break;
                         }
                 }
 
                 if (clean_row) {
-                        lines_errased++;
-
-                        for (int col2 = 0; col2 < BOARDCOLS ; col2++) {
-                                int id = board[row][col2];
-                                board[row][col2] = EMPTYCELL;
+                        for (int col = 0; col < BOARDCOLS; col++) {
+                                int id = board[pos.y][col];
                                 for (int i = 0; i < 4; i++) {
-                                        if (entities[id]->coord[i].x == col2 
-                                                        && entities[id]->coord[i].y == row) {
-                                                entities[id]->coord[i].x = OUTOFGAME;
-                                                entities[id]->coord[i].y = OUTOFGAME;
-                                                break;
+                                        if (entities[id]->coord[i].x == col 
+                                                        &&
+                                                        entities[id]->coord[i].y == pos.y) {
+                                                entities[id]->coord[i].x = EMPTYCELL;
+                                                entities[id]->coord[i].y = EMPTYCELL;
                                         }
                                 }
+                                board[pos.y][col] = EMPTYCELL;
+                        }
+
+                        lines_erased++;
+                }
+        }
+
+        if (lines_erased > 0) {
+                size_t row_size = sizeof(board[0]); // Size of one row
+                memmove(board + lines_erased, board, (BOARDROWS - lines_erased) * row_size);
+
+                for (int row = 0; row < lines_erased; row++) {
+                        for (int col = 0; col < BOARDCOLS; col++) {
+                                board[row][col] = EMPTYCELL;
                         }
                 }
-        }
-
-        for (int i = 0; i < lines_errased; i++) {
-                for (int row = BOARDROWS - 1; row > 0; row--) {
-
-                        swap_row(BOARDCOLS, board[row], board[row-1]);
-                }
-        }
-
-        if (lines_errased > 0) {
                 for (int i = 0; i < entities_len; i++) {
-                        add_xy_to_tetromino(entities[i], 0, lines_errased);
+                        add_xy_to_tetromino_secure(entities[i], 0, lines_erased);
                 }
         }
 }
@@ -567,4 +572,24 @@ void swap_row(int elements, int rowa[elements], int rowb[elements])
 
         memcpy(rowa, rowb, elements * sizeof(int));
         memcpy(rowb, temp, elements * sizeof(int));
+}
+
+
+void add_xy_to_tetromino_secure(Tetromino *t, int x, int y)
+{
+
+        for (int i = 0; i < 4; i++) {
+                if (t->coord[i].x == EMPTYCELL || t->coord[i].y == EMPTYCELL)
+                        continue;
+
+                if (t->coord[i].y < BOARDROWS -1) {
+                        t->coord[i].y += y;
+                        t->pivot.y += y;
+                }
+
+                if (t->coord[i].x < BOARDCOLS -1) {
+                        t->coord[i].x += x;
+                        t->pivot.x += x;
+                }
+        }
 }
