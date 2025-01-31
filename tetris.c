@@ -72,8 +72,8 @@ void add_xy_to_tetromino(Tetromino *t, int x, int y)
 {
 
         for (int i = 0; i < 4; i++) {
-                if (t->coord[i].x == EMPTYCELL || t->coord[i].y == EMPTYCELL)
-                        continue;
+                /*if (t->coord[i].x == EMPTYCELL || t->coord[i].y == EMPTYCELL)*/
+                /*        continue;*/
 
                 t->coord[i].x += x;
                 t->coord[i].y += y;
@@ -508,6 +508,8 @@ void clear_lines()
 
         int lines_erased = 0;
         bool clean_row = true;
+        int clean_row_start = 0;
+        int clean_row_finish = 0;
 
         for (int i = 0; i < 4; i++) {
                 clean_row = true;
@@ -525,9 +527,12 @@ void clear_lines()
 
                 if (clean_row) {
                         for (int col = 0; col < BOARDCOLS; col++) {
-                                if (pos.y == EMPTYCELL)
-                                        break;
+                                // check this condition
+                                if (pos.y == EMPTYCELL) break;
+
                                 int id = board[pos.y][col];
+                                board[pos.y][col] = EMPTYCELL;
+
                                 for (int i = 0; i < 4; i++) {
                                         if (entities[id]->coord[i].x == col 
                                                         &&
@@ -536,25 +541,42 @@ void clear_lines()
                                                 entities[id]->coord[i].y = EMPTYCELL;
                                         }
                                 }
-                                board[pos.y][col] = EMPTYCELL;
                         }
 
-                        lines_erased++;
+                        if (lines_erased == 0)
+                                clean_row_start = pos.y;
+
+                        // check this condition
+                        if (pos.y != EMPTYCELL)  {
+                                lines_erased++;
+                        }
                 }
         }
+        clean_row_finish = clean_row_start + lines_erased - 1;
 
         if (lines_erased > 0) {
                 size_t row_size = sizeof(board[0]); // Size of one row
-                memmove(board + lines_erased, board, (BOARDROWS - lines_erased) * row_size);
+                void *dest_ptr = NULL;
+                /*/*int diff = &board[clean_row_finish] - &board[clean_row_start];*/
+                /*dest_ptr = memmove(board + diff, board, clean_row_start * row_size);*/
 
-                /*for (int row = 0; row < lines_erased; row++) {*/
-                /*        for (int col = 0; col < BOARDCOLS; col++) {*/
-                /*                board[row][col] = EMPTYCELL;*/
-                /*        }*/
-                /*}*/
+                size_t move_size = (clean_row_start - lines_erased) * row_size;
+                dest_ptr = memmove(board + lines_erased, board, move_size);
 
+                for (ptrdiff_t i = 0; i < clean_row_start; i++) {
+                        for (int j = 0; j < BOARDCOLS; j++) {
+                                board[i][j] = EMPTYCELL;
+                        }
+                }
+
+                // check this part!!
                 for (int i = 0; i < entities_len; i++) {
-                        add_xy_to_tetromino_secure(entities[i], 0, lines_erased);
+                        for (int j = 0; j < 4; j++) {
+                                if (entities[i]->coord[j].y < clean_row_start 
+                                                && entities[i]->coord[j].y != EMPTYCELL) {
+                                        entities[i]->coord[j].y += lines_erased;
+                                }
+                        }
                 }
         }
 }
@@ -570,17 +592,6 @@ void print_board()
         printf("\nEND OF PRINT\n");
 }
 
-void swap_row(int elements, int rowa[elements], int rowb[elements])
-{
-        int temp[elements];
-
-        memcpy(temp, rowa, elements * sizeof(int));
-
-        memcpy(rowa, rowb, elements * sizeof(int));
-        memcpy(rowb, temp, elements * sizeof(int));
-}
-
-
 void add_xy_to_tetromino_secure(Tetromino *t, int x, int y)
 {
 
@@ -590,12 +601,13 @@ void add_xy_to_tetromino_secure(Tetromino *t, int x, int y)
 
                 if (t->coord[i].y < BOARDROWS -1) {
                         t->coord[i].y += y;
-                        t->pivot.y += y;
                 }
 
                 if (t->coord[i].x < BOARDCOLS -1) {
                         t->coord[i].x += x;
-                        t->pivot.x += x;
                 }
         }
+
+        t->pivot.y += y;
+        t->pivot.x += x;
 }
