@@ -55,7 +55,7 @@ int main(void) {
                         case ELIMINATE:
                                 break;
                         case COMPLETION:
-                                clean_lines();
+                                clear_lines();
                                 player.game_state = GENERATION;
                                 player.can_hold = true;
                                 break;
@@ -64,6 +64,7 @@ int main(void) {
 
                 move(player.tetromino);
 
+                /*print_board();*/
                 refresh_board();
                 BeginDrawing();
                 ClearBackground(BLACK);
