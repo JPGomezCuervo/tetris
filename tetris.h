@@ -104,9 +104,7 @@ int has_collide_with_tetromino(const Tetromino *t);
 bool collision_system_ok(Tetromino *t);
 bool super_rotation_system(Tetromino *t, enum_Movement move);
 void clear_lines();
-void swap_row(int elements, int rowa[elements], int rowb[elements]);
 void print_board();
-void add_xy_to_tetromino_secure(Tetromino *t, int x, int y);
 
 extern int64_t entities_len;
 extern Tetromino **entities;
