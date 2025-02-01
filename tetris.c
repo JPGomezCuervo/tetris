@@ -1,14 +1,14 @@
 #include "tetris.h"
 
 // TODO: memset is not that good with values different a -0 CHECK
-// TODO: Implement ghost tetromino
 // TODO: Implement score
 // TODO: Implement keypressed loop
 // TODO: Implement a memory management system
 // TODO: Implement resizable window
 // TODO: Implement queue visualizer
-// TODO: fix I rotation
+// TODO: fix I rotation, the pivot must be the literal center point
 // TODO: REFACTOR THE WHOLE CODE SPECIALLY THE PARTS OF GAME_STATE
+// TODO: TAKE A LOOK ON ROTATION 
 
 int64_t entities_len = 0;
 Tetromino **entities = 0;
@@ -72,9 +72,6 @@ void add_xy_to_tetromino(Tetromino *t, int x, int y)
 {
 
         for (int i = 0; i < 4; i++) {
-                /*if (t->coord[i].x == EMPTYCELL || t->coord[i].y == EMPTYCELL)*/
-                /*        continue;*/
-
                 t->coord[i].x += x;
                 t->coord[i].y += y;
         }
@@ -98,17 +95,19 @@ void swap(Tetromino **a, Tetromino **b)
         *b = t;
 }
 
-void cleanup()
+void cleanup(void)
 {
 
         for (int i = 0; i < entities_len; i++) {
                 free(entities[i]);
         }
+
+        free(player.ghost);
         free(entities);
 }
 
 
-void init_board()
+void init_board(void)
 {
         for (int i = 0; i < BOARDROWS; i++) {
                 for (int j = 0; j < BOARDCOLS; j++) {
@@ -125,7 +124,7 @@ void set_board(Vector coordinates[4], enum_Tetrominoes type)
 
 }
 
-Tetromino clear_player_from_board()
+Tetromino clear_player_from_board(void)
 {
         Tetromino old_state = {0};
         memcpy(&old_state, &player, sizeof(Game));
@@ -133,7 +132,7 @@ Tetromino clear_player_from_board()
         return old_state;
 }
 
-void refresh_board()
+void refresh_board(void)
 {
 
         int offsetx = PADDINGX/2;
@@ -172,7 +171,8 @@ void refresh_board()
 
                         if (cell == EMPTYCELL) {
                                 DrawRectangleRec(block, BLACK);
-                                DrawRectangleLinesEx(block, 1.0, LIGHTGRAY);
+                                DrawRectangleLinesEx(block, 1.0, GRAY);
+
                         } else {
                                 t = *entities[cell];
                                 DrawRectangleRec(block, colors[t.type]);
@@ -182,7 +182,7 @@ void refresh_board()
         }
 }
 
-Tetromino *create_tetromino()
+Tetromino *create_tetromino(void)
 {
                 Tetromino *t = malloc(sizeof(Tetromino));
                 t->type = 0;
@@ -195,7 +195,7 @@ Tetromino *create_tetromino()
                 return t;
 }
 
-Tetromino *get_tetromino()
+Tetromino *get_tetromino(void)
 {
         Tetromino *t;
         static Tetromino *batch[7] = {0};
@@ -282,6 +282,7 @@ void move(Tetromino *t)
                         } else {
                                 player.tetromino->pivot.y = 0.0f;
                         }
+                        memcpy(player.ghost, player.tetromino, sizeof(*player.tetromino));
                 }
                 should_move = false;
         } else {
@@ -339,6 +340,7 @@ bool update_tetromino_coordinates(Tetromino *t, enum_Movement move)
                                 break;
 
                         for (int i = 0; i < 4; i++) {
+
                                 vt.coord[i].x -= vt.pivot.x;
                                 vt.coord[i].y -= vt.pivot.y;
                                 vt.coord[i] = vector_rotate(vt.coord[i], DEG2RAD * -90.0f);
@@ -503,7 +505,7 @@ bool super_rotation_system(Tetromino *t, enum_Movement move)
         return false;
 }
 
-void clear_lines()
+void clear_lines(void)
 {
         bool clean_row = true;
         int current_row = 0;
@@ -557,7 +559,46 @@ void clear_lines()
         }
 }
 
-void print_board()
+void show_ghost(void)
+{
+        int offsetx = PADDINGX/2;
+        int offsety = PADDINGY/2;
+
+        copy_coordinates(player.tetromino->coord, player.ghost->coord);
+        while (update_ghost_coordinates(player.ghost));
+
+        Rectangle block = {
+                .width = BLOCKSIZE,
+                .height = BLOCKSIZE,
+        };
+
+
+        for (int i = 0; i < 4; i++) {
+                Vector ghost = player.ghost->coord[i];
+                bool should_outline = true;
+                if (board[ghost.y][ghost.x] != EMPTYCELL) {
+                        should_outline = false;
+                        continue;
+                }
+
+                for (int j = 0; j < 4; j++) {
+                        Vector ply = player.tetromino->coord[j];
+                        if (ghost.x == ply.x && ghost.y == ply.y ) {
+                                should_outline = false;
+                                break;
+                        }
+                }
+
+                if (should_outline) {
+                        block.x = (ghost.x * BLOCKSIZE) + offsetx;
+                        block.y = (ghost.y * BLOCKSIZE) + offsety;
+                        DrawRectangleRec(block, BLACK);
+                        DrawRectangleLinesEx(block, 1.8, colors[player.ghost->type]);
+                }
+        }
+}
+
+void print_board(void)
 {
         for (int row = 0; row < BOARDROWS; row++) {
                 printf("%c", '\n');
@@ -566,4 +607,70 @@ void print_board()
                 }
         }
         printf("\nEND OF PRINT\n");
+}
+
+bool update_ghost_coordinates(Tetromino *t)
+{
+        Tetromino vt = {0};
+        /*clear_player_from_board();*/
+        memcpy(&vt, t, sizeof(*t));
+
+        add_xy_to_tetromino(&vt, 0, 1);
+
+
+        if ( (collision_system_ok_ghost(&vt))) {
+                copy_coordinates(vt.coord, t->coord);
+                return true;
+        } 
+
+        return false;
+}
+
+bool collision_system_ok_ghost(Tetromino *t)
+{
+
+        int collision_id = 0;
+        switch(has_collide_with_limits(t)) {
+                case BOTOMLINE:
+                        return false;
+                        break;
+                case SKYLINE:
+                case RIGHTLINE:
+                case LEFTLINE:
+                        return false;
+                        break;
+                default:
+                        break;
+        }
+
+        collision_id = has_collide_with_tetromino(t);
+
+
+        if (collision_id != t->id)
+                return false;
+        else
+                return !ghost_collide_with_other(t);
+}
+
+// TODO: CHECK THIS FUNCTION
+
+bool ghost_collide_with_other(const Tetromino *t)
+{
+        int8_t row = 0;
+        int8_t col = 0;
+        int8_t cell = 0;
+
+        for (int i = 0; i < 4; i++) {
+                col = t->coord[i].x;
+                row = t->coord[i].y;
+                cell = board[row][col];
+
+                if (row == EMPTYCELL || col == EMPTYCELL)
+                        continue;
+
+                if (cell != EMPTYCELL && cell != player.ghost->id) {
+                        return true;
+                }
+        }
+        return false;
 }

@@ -11,6 +11,7 @@ int main(void) {
         srand(time(NULL));
         player.hold = NULL;
         player.can_hold = true;
+        player.ghost = create_tetromino();
 
         // TODO: Manage allocated size and resize it! this should be in a function
         entities = malloc(sizeof(Tetromino *) * allocated_size);
@@ -28,6 +29,7 @@ int main(void) {
                                 Tetromino *t = get_tetromino();
                                 entities[entities_len - 1] = t;
                                 player.tetromino = entities[entities_len - 1];
+                                memcpy(player.ghost, player.tetromino, sizeof(*player.tetromino));
 
                                 player.game_state = FALLING;
                                 break;
@@ -65,8 +67,9 @@ int main(void) {
                 move(player.tetromino);
 
                 /*print_board();*/
-                refresh_board();
                 BeginDrawing();
+                refresh_board();
+                show_ghost();
                 ClearBackground(BLACK);
                 EndDrawing();
         }
