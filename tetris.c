@@ -7,8 +7,9 @@
 // TODO: Implement resizable window
 // TODO: Implement queue visualizer
 // TODO: fix I rotation, the pivot must be the literal center point
-// TODO: REFACTOR THE WHOLE CODE SPECIALLY THE PARTS OF GAME_STATE
 // TODO: TAKE A LOOK ON ROTATION 
+// TODO: Check rendering logic 
+// TODO: Implement debug system
 
 int64_t entities_len = 0;
 Tetromino **entities = 0;
@@ -88,16 +89,15 @@ inline void copy_coordinates(Vector src[4], Vector dst[4])
         }
 }
 
-void swap(Tetromino **a, Tetromino **b)
+inline void swap(Tetromino **a, Tetromino **b)
 {
         Tetromino *t = *a;
         *a = *b;
         *b = t;
 }
 
-void cleanup(void)
+inline void cleanup(void)
 {
-
         for (int i = 0; i < entities_len; i++) {
                 free(entities[i]);
         }
@@ -107,7 +107,7 @@ void cleanup(void)
 }
 
 
-void init_board(void)
+inline void init_board(void)
 {
         for (int i = 0; i < BOARDROWS; i++) {
                 for (int j = 0; j < BOARDCOLS; j++) {
@@ -118,18 +118,13 @@ void init_board(void)
 
 void set_board(Vector coordinates[4], enum_Tetrominoes type)
 {
-
         for (int i = 0; i < 4; i++)
                 board[coordinates[i].y][coordinates[i].x] = type;
-
 }
 
-Tetromino clear_player_from_board(void)
+inline void clear_tetromino_from_board(Tetromino *t)
 {
-        Tetromino old_state = {0};
-        memcpy(&old_state, &player, sizeof(Game));
-        set_board(player.tetromino->coord, EMPTYCELL);
-        return old_state;
+        set_board(t->coord, EMPTYCELL);
 }
 
 void refresh_board(void)
@@ -148,7 +143,6 @@ void refresh_board(void)
                 Tetromino *t;
                 t = entities[i];
 
-                // TODO: remove alive prop from tetromino
                 if (t != player.hold) 
                         for (int j = 0; j < 4; j++) {
                                 int x = t->coord[j].x;
@@ -187,11 +181,12 @@ Tetromino *create_tetromino(void)
                 Tetromino *t = malloc(sizeof(Tetromino));
                 t->type = 0;
                 t->id = 0;
-                t->alive = true;
                 t->is_rotating = false;
                 t->rotation_state = 0;
                 t->pivot.x = 1.0f + 3.0f;
                 t->pivot.y = 1.0f; 
+                t->is_ghost = false; 
+
                 return t;
 }
 
@@ -212,9 +207,8 @@ Tetromino *get_tetromino(void)
         t = batch[counter];
         t->id = entities_len;
 
-        if (t->type == I) {
+        if (t->type == I)
                 add_xy_to_tetromino(t, 0, 1);
-        }
 
         entities_len++;
         counter++;
@@ -223,28 +217,32 @@ Tetromino *get_tetromino(void)
 
 void create_batch(Tetromino *batch[7])
 {
-
         for (int i = 0; i < 7; i++) {
                 Tetromino *t = create_tetromino(); 
                 t->type = i;
                 copy_coordinates(shapes[i], t->coord);
 
-                if ( t->type == I) {
+                if ( t->type == I)
                         t->pivot.y = 0.0f;
-                }
 
-                for (int j = 0; j < 4; j++) t->coord[j].x += OFFSET;
+                for (int j = 0; j < 4; j++) 
+                        t->coord[j].x += OFFSET;
+
                 batch[i] = t;
         }
 }
 
-void shuffle_batch(Tetromino *batch[7])
+inline void shuffle_batch(Tetromino *batch[7])
 {
-
         for (int i = 6; i > 0; i--) {
                 int j = rand() % (i + 1);
                 swap(&batch[i], &batch[j]);
         }
+}
+
+inline void hard_drop(Tetromino *t)
+{
+        while (update_tetromino_coordinates(t, DOWN));
 }
 
 void move(Tetromino *t)
@@ -263,11 +261,11 @@ void move(Tetromino *t)
         } else if (IsKeyPressed(KEY_Z)) {
                 direction = ROTATE_L;
         } else if (IsKeyPressed(KEY_SPACE)) {
-                while (update_tetromino_coordinates(t, DOWN));
+                hard_drop(t);
                 should_move = false;
         } else if (player.can_hold && IsKeyPressed(KEY_C)) {
                 player.can_hold = false;
-                clear_player_from_board();
+                clear_tetromino_from_board(player.tetromino);
                 if (player.hold == NULL) {
                         player.hold = t;
                         player.game_state = GENERATION;
@@ -290,16 +288,14 @@ void move(Tetromino *t)
         }
 
         if (should_move) {
-                if (!update_tetromino_coordinates(t, direction)) {
+                if (!update_tetromino_coordinates(t, direction))
                         player.game_state = FALLING;
-                }
         }
 }
 
 bool update_tetromino_coordinates(Tetromino *t, enum_Movement move)
 {
         Tetromino vt = {0};
-        clear_player_from_board();
         memcpy(&vt, t, sizeof(*t));
 
         switch(move) {
@@ -315,62 +311,42 @@ bool update_tetromino_coordinates(Tetromino *t, enum_Movement move)
 
                         break;
                 case RIGHT:
-                        add_xy_to_tetromino(&vt, +1, 0);
+                        add_xy_to_tetromino(&vt, 1, 0);
 
                         break;
-
                 case ROTATE_R:
 
                         if (vt.type == O) 
                                 break;
-
-                        for (int i = 0; i < 4; i++) {
-                                vt.coord[i].x -= vt.pivot.x;
-                                vt.coord[i].y -= vt.pivot.y;
-                                vt.coord[i] = vector_rotate(vt.coord[i], DEG2RAD * 90.0f);
-                                vt.coord[i].x += vt.pivot.x;
-                                vt.coord[i].y += vt.pivot.y;
-                        }
-
+                        rotate_tetromino(&vt, 90.0f);
                         break;
-
                 case ROTATE_L:
 
                         if (vt.type == O) 
                                 break;
-
-                        for (int i = 0; i < 4; i++) {
-
-                                vt.coord[i].x -= vt.pivot.x;
-                                vt.coord[i].y -= vt.pivot.y;
-                                vt.coord[i] = vector_rotate(vt.coord[i], DEG2RAD * -90.0f);
-                                vt.coord[i].x += vt.pivot.x;
-                                vt.coord[i].y += vt.pivot.y;
-                        }
-
+                        rotate_tetromino(&vt, -90.0f);
                         break;
                 default:
                         exit(1);
         }
 
+        if (!t->is_ghost)
+                clear_tetromino_from_board(t);
+
         if ( (collision_system_ok(&vt))) {
                 copy_coordinates(vt.coord, t->coord);
                 t->pivot = vt.pivot;
-                set_board(t->coord, t->type);
 
                 if (move == ROTATE_R) {
-                        if (t->rotation_state == 3)
-                                t->rotation_state = 0;
-                        else 
-                                t->rotation_state++;
+                        increment_rotation_state(t, 1);
                 } else if (move == ROTATE_L) {
-                        if (t->rotation_state == 3)
-                                t->rotation_state = 0;
-                        else 
-                                t->rotation_state--;
+                        increment_rotation_state(t, -1);
                 } 
 
-                player.game_state = FALLING;
+                if (!t->is_ghost)  {
+                        set_board(t->coord, t->type);
+                        player.game_state = FALLING;
+                }
                 return true;
         } else {
                 if ((move == ROTATE_R || move == ROTATE_L) && super_rotation_system(&vt, move)) {
@@ -384,6 +360,25 @@ bool update_tetromino_coordinates(Tetromino *t, enum_Movement move)
         }
 
         return false;
+}
+
+void rotate_tetromino(Tetromino *t, float degrees)
+{
+                        for (int i = 0; i < 4; i++) {
+                                t->coord[i].x -= t->pivot.x;
+                                t->coord[i].y -= t->pivot.y;
+                                t->coord[i] = vector_rotate(t->coord[i], DEG2RAD * degrees);
+                                t->coord[i].x += t->pivot.x;
+                                t->coord[i].y += t->pivot.y;
+                        }
+}
+
+void increment_rotation_state(Tetromino *t, int val)
+{
+        if (t->rotation_state == 3)
+                t->rotation_state = 0;
+        else 
+                t->rotation_state += val;
 }
 
 int has_collide_with_limits(const Tetromino *t)
@@ -412,7 +407,7 @@ int has_collide_with_limits(const Tetromino *t)
                 return 0;
 }
 
-int has_collide_with_tetromino(const Tetromino *t)
+bool has_collide_with_tetromino(const Tetromino *t)
 {
 
         int8_t row = 0;
@@ -427,21 +422,20 @@ int has_collide_with_tetromino(const Tetromino *t)
                 if (row == EMPTYCELL || col == EMPTYCELL)
                         continue;
 
-                if (cell != EMPTYCELL) {
-                        return cell;
+                if (cell != EMPTYCELL && cell != t->id) {
+                        return true;
                 }
         }
-                return t->id;
+                return false;
 }
 
 bool collision_system_ok(Tetromino *t)
 {
-
-        int collision_id = 0;
         switch(has_collide_with_limits(t)) {
                 case BOTOMLINE:
-                        if (player.game_state != LOCK)
+                        if (!t->is_ghost && player.game_state != LOCK)
                                 player.game_state = LOCK;
+
                         return false;
                         break;
                 case SKYLINE:
@@ -453,10 +447,10 @@ bool collision_system_ok(Tetromino *t)
                         break;
         }
 
-        collision_id = has_collide_with_tetromino(t);
+        if (has_collide_with_tetromino(t)) {
+                if (!t->is_ghost)
+                        player.game_state = LOCK;
 
-        if (collision_id != t->id) {
-                player.game_state = LOCK;
                 return false;
         } else {
                 return true;
@@ -487,11 +481,7 @@ bool super_rotation_system(Tetromino *t, enum_Movement move)
                                 (*ptr_srs_offsets)[t->rotation_state][i].x,
                                 (*ptr_srs_offsets)[t->rotation_state][i].y);
 
-                if (t->rotation_state == 3)
-                        t->rotation_state = 0;
-                else
-                        t->rotation_state++;
-
+               increment_rotation_state(t, 1);
 
                 if (collision_system_ok(t))
                         return true;
@@ -500,7 +490,6 @@ bool super_rotation_system(Tetromino *t, enum_Movement move)
                                         (*ptr_srs_offsets)[t->rotation_state][i].x * -1,
                                         (*ptr_srs_offsets)[t->rotation_state][i].y * -1);
         }
-
 
         return false;
 }
@@ -565,7 +554,7 @@ void show_ghost(void)
         int offsety = PADDINGY/2;
 
         copy_coordinates(player.tetromino->coord, player.ghost->coord);
-        while (update_ghost_coordinates(player.ghost));
+        hard_drop(player.ghost);
 
         Rectangle block = {
                 .width = BLOCKSIZE,
@@ -612,65 +601,15 @@ void print_board(void)
 bool update_ghost_coordinates(Tetromino *t)
 {
         Tetromino vt = {0};
-        /*clear_player_from_board();*/
         memcpy(&vt, t, sizeof(*t));
 
         add_xy_to_tetromino(&vt, 0, 1);
 
 
-        if ( (collision_system_ok_ghost(&vt))) {
+        if ( (collision_system_ok(&vt))) {
                 copy_coordinates(vt.coord, t->coord);
                 return true;
         } 
 
-        return false;
-}
-
-bool collision_system_ok_ghost(Tetromino *t)
-{
-
-        int collision_id = 0;
-        switch(has_collide_with_limits(t)) {
-                case BOTOMLINE:
-                        return false;
-                        break;
-                case SKYLINE:
-                case RIGHTLINE:
-                case LEFTLINE:
-                        return false;
-                        break;
-                default:
-                        break;
-        }
-
-        collision_id = has_collide_with_tetromino(t);
-
-
-        if (collision_id != t->id)
-                return false;
-        else
-                return !ghost_collide_with_other(t);
-}
-
-// TODO: CHECK THIS FUNCTION
-
-bool ghost_collide_with_other(const Tetromino *t)
-{
-        int8_t row = 0;
-        int8_t col = 0;
-        int8_t cell = 0;
-
-        for (int i = 0; i < 4; i++) {
-                col = t->coord[i].x;
-                row = t->coord[i].y;
-                cell = board[row][col];
-
-                if (row == EMPTYCELL || col == EMPTYCELL)
-                        continue;
-
-                if (cell != EMPTYCELL && cell != player.ghost->id) {
-                        return true;
-                }
-        }
         return false;
 }
