@@ -56,6 +56,50 @@ Vector srs_offsets_i_left[4][4] = {
 };
 
 
+Arena create_arena(size_t capacity) 
+{
+        Arena a = {
+                .capacity = capacity,
+                .size = 0,
+                .data = NULL,
+        };
+
+        // think on posix memalign 64
+        a.data = malloc(sizeof(char) * capacity);
+        if (a.data == NULL) {
+                fprintf(stderr, "Arena Error: failed allocation\n");
+                exit(1);
+        }
+        return a;
+}
+
+void *arena_alloc(Arena *a, size_t size)
+{
+        if (a->size + size > a->capacity) {
+                fprintf(stderr, "Arena Error: Out memory bounds\n");
+                exit(1);
+        }
+
+        void *res = (void *) a->data + size; 
+        a->size += size;
+
+        return res;
+}
+
+void destroy_arena(Arena *a)
+{
+        free(a);
+}
+
+bool compare_coordinates(Vector a[4], Vector b[4]) 
+{
+        for (int i = 0; i < 4; i++) {
+                if (!(a[i].x == b[i].x && a[i].y == b[i].y))
+                        return false;
+        }
+        return true;
+}
+
 Vector vector_rotate(Vector v, float angle)
 {
     Vector result = { 0 };
@@ -176,9 +220,9 @@ void refresh_board(void)
         }
 }
 
-Tetromino *create_tetromino(void)
+Tetromino *create_tetromino(Arena *a)
 {
-                Tetromino *t = malloc(sizeof(Tetromino));
+                Tetromino *t = arena_alloc(a, sizeof(Tetromino));
                 t->type = 0;
                 t->id = 0;
                 t->is_rotating = false;
@@ -190,7 +234,7 @@ Tetromino *create_tetromino(void)
                 return t;
 }
 
-Tetromino *get_tetromino(void)
+Tetromino *get_tetromino(Arena *a)
 {
         Tetromino *t;
         static Tetromino *batch[7] = {0};
@@ -200,7 +244,7 @@ Tetromino *get_tetromino(void)
                 counter = 0;
 
         if (counter == 0) {
-                create_batch(batch);
+                create_batch(a, batch);
                 shuffle_batch(batch);
         }
 
@@ -215,10 +259,10 @@ Tetromino *get_tetromino(void)
         return t;
 }
 
-void create_batch(Tetromino *batch[7])
+void create_batch(Arena *a, Tetromino *batch[7])
 {
         for (int i = 0; i < 7; i++) {
-                Tetromino *t = create_tetromino(); 
+                Tetromino *t = create_tetromino(a); 
                 t->type = i;
                 copy_coordinates(shapes[i], t->coord);
 

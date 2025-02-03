@@ -22,7 +22,14 @@
 #define OFFSET          3
 #define EMPTYCELL       -1
 #define OUTOFGAME       -1
+#define ALLOCATED_SIZE  131072
 
+
+typedef struct {
+        size_t capacity;
+        size_t size;
+        char *data;
+} Arena;
 
 typedef enum {
         J,
@@ -66,15 +73,16 @@ typedef struct {
         int32_t y;
 } Vector;
 
+/* size: 64 bytes aligned */
 typedef struct {
         Vector coord[4];
         int32_t id;
         enum_Tetrominoes type;
+        Vector2 pivot;
+        int rotation_state;
         bool is_ghost;
         bool is_rotating;
-        int rotation_state;
-        Vector2 pivot;
-       
+        int8_t padding[8];
 } Tetromino;
 
 typedef struct {
@@ -94,9 +102,9 @@ void init_board(void);
 void set_board(Vector coordinates[4], enum_Tetrominoes type);
 void clear_tetromino_from_board(Tetromino *t);
 void refresh_board(void);
-Tetromino *create_tetromino(void);
-Tetromino *get_tetromino(void);
-void create_batch(Tetromino *batch[7]);
+Tetromino *create_tetromino(Arena *a);
+Tetromino *get_tetromino(Arena *a);
+void create_batch(Arena *a, Tetromino *batch[7]);
 void shuffle_batch(Tetromino *batch[7]);
 void move(Tetromino *t);
 void hard_drop(Tetromino *t);
@@ -112,6 +120,10 @@ void print_board(void);
 void show_ghost(void);
 bool update_ghost_coordinates(Tetromino *t);
 bool collision_system_ok_ghost(Tetromino *t);
+Arena create_arena(size_t capacity); 
+void *arena_alloc(Arena *a, size_t size);
+bool compare_coordinates(Vector a[4], Vector b[4]);
+void destroy_arena(Arena *a);
 
 extern int64_t entities_len;
 extern Tetromino **entities;

@@ -4,18 +4,21 @@ float lock_interval = 0.5f;
 float lock_timer = 0.0f; 
 float fall_interval = 1.0f;
 float fall_timer = 0.0f;
-int64_t allocated_size = 1024;
+int allocated_size = 1000000;
 
 int main(void) {
+        Arena arena_tetro = create_arena(allocated_size);
+        Arena arena_entities = create_arena(allocated_size);
+        /*entities = (Tetromino **) arena_alloc(&arena_entities, sizeof(Tetromino*) * (allocated_size/sizeof(Tetromino)));*/
+        entities = malloc(sizeof(Tetromino *) * allocated_size);
         init_board();
         srand(time(NULL));
         player.hold = NULL;
         player.can_hold = true;
-        player.ghost = create_tetromino();
+        player.ghost = create_tetromino(&arena_tetro);
         player.ghost->is_ghost = true;
 
         // TODO: Manage allocated size and resize it! this should be in a function
-        entities = malloc(sizeof(Tetromino *) * allocated_size);
 
         InitWindow(SCREENWIDTH, SCREENHEIGHT, "tetrix!");
         SetTargetFPS(60);
@@ -27,7 +30,7 @@ int main(void) {
 
                 switch(player.game_state) {
                         case GENERATION:
-                                Tetromino *t = get_tetromino();
+                                Tetromino *t = get_tetromino(&arena_entities);
                                 entities[entities_len - 1] = t;
                                 player.tetromino = entities[entities_len - 1];
                                 memcpy(player.ghost, player.tetromino, sizeof(*player.tetromino));
@@ -76,7 +79,9 @@ int main(void) {
         }
 
         CloseWindow();
-        cleanup();
+        destroy_arena(&arena_tetro);
+        /*free(entities);*/
+        destroy_arena(&arena_entities);
 
         return 0;
 }

@@ -1,6 +1,7 @@
 # Compiler and flags
+#-fsanitize=address
 CC = gcc
-CFLAGS = -Wall -Wextra -ggdb -fsanitize=address -Wunused-function -Wmissing-prototypes -Wunreachable-code
+CFLAGS = -Wall -Wextra -ggdb  -Wunused-function -Wmissing-prototypes -Wunreachable-code
 LDLIBS = -lraylib -lm
 
 # Target executable
